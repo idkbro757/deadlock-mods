@@ -71,6 +71,33 @@ into `CSDK12/content/citadel_addons/`, so you get
    then **make vpk...**. Drop the `pakXX_dir.vpk` into `Deadlock/game/citadel/addons/`
    like any other mod.
 
+## D4C in the Hotel
+
+When Doorman checks someone into the Hotel (his ult), D4C stands behind the spot they vanished
+from, hand raised, facing the way they faced. He shows up the moment they're checked in and
+vanishes the moment they come out, whether that's the full stay, a shorter or longer one from
+items, or an early checkout.
+
+How: the game puts `particles/abilities/doorman/doorman_hotel_debuff.vpcf` on the victim's
+stand-in for exactly as long as they're in the Hotel. `addon_files/` overrides it with Valve's
+same effect plus one extra child, `particles/funny_valentine/d4c_hotel.vpcf`. That child copies
+the lifecycle of Valve's own floating key: one particle whose lifetime only runs out when the game
+ends the effect, so it has no timings of its own. D4C himself is a static prop
+(`models/heroes_wip/doorman_v2/fv_d4c_hotel.vmdl`), posed by `d4c_prop.py`, with the "behind and to
+the right" offset built into the mesh.
+
+To add it, copy `addon_files/` into the addon (`tools/Install FV update.bat` does that and stamps the
+files so the compilers pick them up). Then:
+
+1. CSDK12: **Compile All Assets** (materials and the two effects).
+2. VMDL Compiler: `doorman.vmdl` with preset **doorman** → **compile**.
+3. VMDL Compiler: `fv_d4c_hotel.vmdl` → **compile**. It's a plain prop and has no skeleton, so
+   nothing gets injected.
+4. `tools/Check FV update.bat` lists anything that still isn't built. Then **make vpk...**.
+
+If Valve changes the Hotel effect, re-extract it with `tools/Extract Doorman door.bat` and add the
+D4C child to the new copy.
+
 ## Sharing it with friends
 
 Once you have the compiled `.vpk` from step 5:

@@ -1,5 +1,6 @@
-# Pulls Doorman's stock Doorway door out of YOUR Deadlock install and zips it to your Desktop,
-# so it can be rebuilt with the flag while the frame and open door stay exactly as Valve made them.
+# Pulls Doorman's stock Doorway door (and the Hotel debuff effect) out of YOUR Deadlock install and
+# zips them to your Desktop, so the door can be rebuilt with the flag while the frame and open door
+# stay exactly as Valve made them, and D4C can be added to the Hotel effect without losing anything.
 # Downloads the Source 2 Viewer command-line tool (ValveResourceFormat, open source) to do the unpacking.
 param([string]$DeadlockPath = "")
 $ErrorActionPreference = "Stop"
@@ -71,11 +72,14 @@ try {
 
     $out = Join-Path $work "doorman_door"
     New-Item -ItemType Directory -Force -Path $out | Out-Null
-    Say "  unpacking models/heroes_wip/doorman/doorman_door.vmdl_c ..."
-    & $cli -i $vpk -f "models/heroes_wip/doorman/doorman_door.vmdl_c" -d -o (Join-Path $out "doorman_door.vmdl") | Out-Null
-    if (-not (Test-Path -LiteralPath (Join-Path $out "doorman_door.vmdl"))) { throw "Source 2 Viewer didn't produce doorman_door.vmdl" }
-    # the compiled original too, so nothing gets lost in the decompile
-    & $cli -i $vpk -f "models/heroes_wip/doorman/doorman_door.vmdl_c" -o (Join-Path $out "doorman_door.vmdl_c") | Out-Null
+    # the door (flag door) and the Hotel debuff effect (D4C gets added to it), decompiled + the compiled originals
+    foreach ($f in "models/heroes_wip/doorman/doorman_door.vmdl_c", "particles/abilities/doorman/doorman_hotel_debuff.vpcf_c") {
+        $name = [System.IO.Path]::GetFileName($f)
+        Say "  unpacking $f ..."
+        & $cli -i $vpk -f $f -d -o (Join-Path $out ($name -replace '_c$', '')) | Out-Null
+        & $cli -i $vpk -f $f -o (Join-Path $out $name) | Out-Null
+        if (-not (Test-Path -LiteralPath (Join-Path $out $name))) { throw "Source 2 Viewer couldn't find $f in pak01_dir.vpk" }
+    }
     $n = (Get-ChildItem -LiteralPath $out -File).Count
 
     $desktop = [Environment]::GetFolderPath("Desktop")
