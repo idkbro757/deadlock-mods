@@ -1,0 +1,61 @@
+# Drop a compiled .vpk into funny_valentine/release/ and this publishes it as a download
+# for friends: https://github.com/idkbro757/deadlock-mods/releases/tag/funny-valentine
+name: Funny Valentine release
+
+on:
+  push:
+    paths:
+      - "funny_valentine/release/**"
+      - "funny_valentine/share/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Package
+        id: pkg
+        run: |
+          # newest committed .vpk that still exists (upload a new one and it wins)
+          vpk=""
+          for f in $(git log --format= --name-only --diff-filter=AM -- 'funny_valentine/release/*.vpk'); do
+            if [ -f "$f" ]; then vpk="$f"; break; fi
+          done
+          [ -z "$vpk" ] && vpk=$(ls funny_valentine/release/*.vpk 2>/dev/null | head -n 1 || true)
+          if [ -z "$vpk" ]; then
+            echo "No .vpk in funny_valentine/release/ yet - nothing to publish."
+            exit 0
+          fi
+          echo "Packaging $vpk"
+          mkdir -p dist/FunnyValentine
+          cp "$vpk" dist/funny_valentine.vpk
+          cp "$vpk" dist/FunnyValentine/funny_valentine.vpk
+          cp funny_valentine/share/* dist/FunnyValentine/
+          (cd dist && zip -r -q FunnyValentine-Deadlock.zip FunnyValentine)
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Publish
+        if: steps.pkg.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="Funny Valentine (JoJo Part 7) replaces Doorman.
+
+          **Download FunnyValentine-Deadlock.zip below**, unzip it, and double-click *Install Funny Valentine.bat*.
+          Run it again after Deadlock updates. Only people with the mod installed see him.
+
+          Updated $(date -u '+%Y-%m-%d %H:%M UTC') from ${GITHUB_SHA::7}."
+          if gh release view funny-valentine >/dev/null 2>&1; then
+            gh release edit funny-valentine --notes "$notes"
+          else
+            gh release create funny-valentine --title "Funny Valentine (Doorman)" --notes "$notes" --target "$GITHUB_SHA"
+          fi
+          gh release upload funny-valentine dist/FunnyValentine-Deadlock.zip dist/funny_valentine.vpk --clobber
+          echo "Published: https://github.com/${GITHUB_REPOSITORY}/releases/tag/funny-valentine"

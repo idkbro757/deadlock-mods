@@ -70,6 +70,25 @@ into `CSDK12/content/citadel_addons/`, so you get
    then **make vpk...**. Drop the `pakXX_dir.vpk` into `Deadlock/game/citadel/addons/`
    like any other mod.
 
+## Sharing it with friends
+
+Once you have the compiled `.vpk` from step 5:
+
+1. Upload it at
+   **https://github.com/idkbro757/deadlock-mods/upload/claude/brave-pasteur-17l5q5/funny_valentine/release**
+   (drag it in, then click **Commit changes**).
+2. About a minute later, a GitHub Action publishes it as a download at
+   **https://github.com/idkbro757/deadlock-mods/releases/tag/funny-valentine**. Send your friends that link.
+
+Friends download `FunnyValentine-Deadlock.zip`, unzip it, and double-click
+**Install Funny Valentine.bat**. The installer finds Deadlock through Steam, turns on
+mod loading in `gameinfo.gi` (keeping a `.bak`), and copies the mod into a free
+`citadel/addons/pakNN_dir.vpk` slot without touching their other mods. Deadlock
+updates reset `gameinfo.gi`, so they just run it again afterwards. There's an
+uninstaller next to it too. Upload a newer vpk and the release updates itself.
+
+Mods are visual only: each friend sees FV only if they installed it themselves.
+
 ## Options worth knowing
 
 | flag | what it does |
