@@ -1,0 +1,6 @@
+# downloaded third-party models stay local (see each mod's README for where to get them)
+funny_valentine/source/
+*.blend
+*.blend1
+fv_preview_*.png
+__pycache__/
