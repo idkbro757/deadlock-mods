@@ -101,6 +101,14 @@ Mods are visual only: each friend sees FV only if they installed it themselves.
 | `--weights hero` | Copies Doorman's skin weights by proximity instead of using FV's own. Try it if his clothes deform badly. |
 | `--save-blend x.blend` | Saves the fitted scene so you can fix weights by hand. Re-export with BST as DMX binary 9, model 22. |
 
+**Compiler fails with `content_consider_missing_materials_fatal` (9 errors)?** Recent
+CS2 builds treat any missing material as fatal when compiling a `.vmdl`, and CS2 doesn't
+have Deadlock's materials. Open
+`...\Counter-Strike Global Offensive\game\csgo_core\gameinfo.gi` in Notepad, search for
+`content_consider_missing_materials_fatal`, change the `"substr" ".vmdl"` line under it
+to `"substr" ".nomatch"`, save, and compile again. A CS2 update may undo it, so redo the
+edit if the error comes back.
+
 The script prints the bone match it found. If it says
 `couldn't find arms/legs/head/hips`, it falls back to scaling him to fit and
 copying Doorman's weights. That works, but a T-posed model will look rough.
