@@ -1,7 +1,8 @@
 # Funny Valentine (JJBA Part 7) → Doorman
 
-The 23rd President of the United States replaces Doorman. He keeps Doorman's key-gun,
-doors and every animation, so he plays exactly like Doorman does. It fits: D4C hops
+The 23rd President of the United States replaces Doorman. He carries his own revolver
+instead of the key-gun and keeps Doorman's doors and every animation, so he plays exactly
+like Doorman does. It fits: D4C hops
 between worlds by getting sandwiched between things, and Doorman's whole kit is doors.
 
 The lazy part is `fv_build.py`. It's a Blender script that does the whole "pain and
@@ -93,6 +94,9 @@ Mods are visual only: each friend sees FV only if they installed it themselves.
 
 | flag | what it does |
 |---|---|
+| `--gun props/fv_revolver.glb` | Swaps Doorman's key-gun for another gun model (`build.bat` uses FV's own revolver). The grip goes in his palm and the barrel lies along Doorman's barrel. |
+| `--gun-forward -y --gun-up +z` | Tells it which way the `--gun` model's barrel and top face if it guesses wrong. |
+| `--gun-scale 1.1` | Makes the `--gun` bigger or smaller. |
 | `--with-stand` | Brings D4C along, floating over his shoulder. It's rigid and stuck in whatever pose the file has, which is funnier than it should be. |
 | `--scale 1.05` | Makes him bigger or smaller than Doorman. |
 | `--pick valentine` | Picks which armature is FV if the script grabs D4C instead. |
@@ -125,6 +129,9 @@ material name. If the hero has extra render meshes to hide, pass them to `--drop
 ## Credits
 
 - Model: "FUNNY VALENTINE & D4C || SBR", uploaded to Sketchfab by **shamus (@consistent_models)**.
+- Revolver (`props/fv_revolver.glb`): from the SFM "Funny Valentine & D4C" pack
+  ([Steam Workshop 1655983213](https://steamcommunity.com/sharedfiles/filedetails/?id=1655983213)),
+  which ports the same game models.
   It's killermemerino's XNALara port of the model from *JoJo's Bizarre Adventure: All-Star
   Battle / Eyes of Heaven* (Bandai Namco / CyberConnect2), so credit them too if you share it.
 - Funny Valentine / JoJo's Bizarre Adventure © Hirohiko Araki. This is a non-commercial fan mod.

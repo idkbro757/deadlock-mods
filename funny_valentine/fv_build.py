@@ -85,6 +85,12 @@ def parse_args():
     p.add_argument("--exclude", default=DEFAULT_EXCLUDE,
                    help="comma list: FV-side meshes to throw away (substring match on object/material name)")
     p.add_argument("--textures", default="", help="folder to look in for textures the model can't find")
+    p.add_argument("--gun", default="", help="replace the hero's gun with this model (e.g. an old revolver)")
+    p.add_argument("--gun-grip", default="1.1,0,1.0",
+                   help="where the palm holds the gun, in the gun's bind space (Doorman: 1.1,0,1.0 - measured)")
+    p.add_argument("--gun-scale", type=float, default=1.0, help="extra size multiplier for --gun")
+    p.add_argument("--gun-forward", default="", help="axis the --gun barrel points along in its file, e.g. -y (guessed if unset)")
+    p.add_argument("--gun-up", default="", help="axis pointing out of the top of the --gun in its file, e.g. +z (guessed if unset)")
     p.add_argument("--pick", default="", help="substring of the armature to use if the file has several (FV vs D4C)")
     p.add_argument("--scale", type=float, default=1.0, help="extra size multiplier after matching the hero's height")
     p.add_argument("--weights", choices=("auto", "model", "hero"), default="auto",
@@ -741,6 +747,131 @@ def name_blob(o):
     return " ".join(parts).lower()
 
 
+def import_model(path, textures=""):
+    """Import a .gltf/.glb/.fbx/.dmx/.smd/.blend and return the new objects (textures relinked)."""
+    before = set(bpy.data.objects.keys())
+    ext = os.path.splitext(path)[1].lower()
+    if ext in (".gltf", ".glb"):
+        bpy.ops.import_scene.gltf(filepath=path)
+    elif ext == ".fbx":
+        bpy.ops.import_scene.fbx(filepath=path, automatic_bone_orientation=False)
+    elif ext == ".obj":
+        bpy.ops.wm.obj_import(filepath=path)
+    elif ext in (".dmx", ".smd"):
+        bpy.ops.import_scene.smd(filepath=path)
+    elif ext == ".blend":
+        with bpy.data.libraries.load(path, link=False) as (src, dst):
+            dst.objects = list(src.objects)
+        for o in dst.objects:
+            if o is not None:
+                link_to_scene(o)
+    else:
+        die("don't know how to import " + ext)
+    objs = new_objects(before)
+    relink_textures(path, textures)
+    return objs
+
+
+def gun_axes(co, forward="", up=""):
+    """Which way a gun model's barrel and top point, as unit vectors. Given ('-y', '+z') style strings they're
+    used as-is; otherwise guessed from its bounding box: longest side = barrel axis, thinnest = its flat side,
+    the grip is in the half that reaches furthest across the gun, and the barrel sits on top of the other half."""
+    def axis(spec):
+        spec = spec.strip().lower()
+        v = np.zeros(3)
+        v["xyz".index(spec.lstrip("+-"))] = -1.0 if spec.startswith("-") else 1.0
+        return v
+    if forward and up:
+        d, u = axis(forward), axis(up)
+        if abs(np.dot(d, u)) > 0.5:
+            die("--gun-forward and --gun-up must be different axes")
+        return d, u
+    lo, hi = co.min(0), co.max(0)
+    order = np.argsort(hi - lo)
+    ax_long, ax_up = order[2], order[1]
+    mid = (lo[ax_long] + hi[ax_long]) / 2
+    halves = [co[co[:, ax_long] < mid], co[co[:, ax_long] >= mid]]
+    reach = [np.ptp(h_[:, ax_up]) if len(h_) else 0.0 for h_ in halves]
+    front = halves[int(np.argmin(reach))]
+    d = np.zeros(3)
+    d[ax_long] = 1.0 if np.argmin(reach) == 1 else -1.0
+    u = np.zeros(3)
+    u[ax_up] = 1.0 if front[:, ax_up].mean() > (lo[ax_up] + hi[ax_up]) / 2 else -1.0
+    return d, u
+
+
+def fit_gun(path, hero_arm, bone, grip_target, muzzle_bone, barrel_bone, scale_mult=1.0, textures="",
+            forward="", up=""):
+    """Import a gun model and lay it along the hero's gun: bore on the hero's barrel line, pointing at the
+    muzzle bone, grip centre on grip_target (gun bind space). Returns one mesh skinned 100% to bone."""
+    objs = import_model(path, textures)
+    meshes = [o for o in objs if o.type == "MESH" and len(o.data.polygons)]
+    if not meshes:
+        die("no mesh in gun model " + path)
+    for o in objs:
+        o.animation_data_clear()
+    for o in meshes:
+        for m in list(o.modifiers):
+            o.modifiers.remove(m)
+        strip_shape_keys(o)
+    bpy.context.view_layer.update()
+    for o in meshes:
+        bake_world_transform(o)
+    delete(o for o in objs if o not in meshes)
+    gun = meshes[0]
+    if len(meshes) > 1:
+        with bpy.context.temp_override(active_object=gun, selected_editable_objects=meshes, object=gun):
+            bpy.ops.object.join()
+    gun.name = "gun"
+
+    co = np.empty(len(gun.data.vertices) * 3)
+    gun.data.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 3)
+    d_s, u_s = gun_axes(co, forward, up)
+    side_s = np.cross(d_s, u_s)
+    t = co @ d_s
+    h = co @ u_s
+    L = t.max() - t.min()
+    # bore = centre of the muzzle face (the front 2%, minus anything poking up like a front sight)
+    tip = t > t.max() - 0.02 * L
+    M = d_s * t.max() + u_s * np.median(h[tip]) + side_s * np.median(co[tip] @ side_s)
+    # grip = everything hanging well below the bore in the back half
+    drop = (M @ u_s) - h
+    sel = (drop > 0.35 * drop.max()) & (t < t.min() + 0.5 * L)
+    if sel.sum() < 10:
+        sel = drop > 0.35 * drop.max()
+    G = co[sel].mean(0)
+    G_drop = float(np.dot(M - G, u_s))
+    G_back = float(np.dot(M - G, d_s))
+
+    H = hero_arm.data.bones
+    Mt = np.array(H[muzzle_bone].head_local)
+    Bt = np.array(H[barrel_bone].head_local)
+    Gt = np.array(grip_target)
+    d_t = (Mt - Bt) / np.linalg.norm(Mt - Bt)
+    u_t = (Mt - Gt) - np.dot(Mt - Gt, d_t) * d_t
+    t_drop = float(np.linalg.norm(u_t))
+    u_t /= t_drop
+    side_t = np.cross(d_t, u_t)
+    # size it so the bore lines up with the hero's bore while the palm sits on the grip
+    scale = t_drop / G_drop * scale_mult
+    R = np.stack([d_t, u_t, side_t], 1) @ np.stack([d_s, u_s, side_s], 0)
+    out = Gt + scale * ((co - G) @ R.T)
+    gun.data.vertices.foreach_set("co", out.ravel())
+    gun.data.update()
+    tip_t = Gt + scale * (R @ (M - G))
+    log("  gun: barrel %s, up %s, scale x%.2f, muzzle ends at %s (hero muzzle %s), %.1f long (grip->muzzle %.1f)"
+        % (np.round(d_s, 2), np.round(u_s, 2), scale, np.round(tip_t, 1), np.round(Mt, 1),
+           scale * L, scale * G_back))
+
+    gun.vertex_groups.clear()
+    gun.vertex_groups.new(name=bone).add(list(range(len(gun.data.vertices))), 1.0, "REPLACE")
+    gun.parent = hero_arm
+    gun.matrix_parent_inverse = Matrix()
+    gun.modifiers.new("hero", "ARMATURE").object = hero_arm
+    return gun
+
+
 def pick_armature(arms, meshes, pick):
     if len(arms) == 1:
         return arms[0]
@@ -1043,24 +1174,7 @@ def main():
     log("hero height %.1f units (floor at %.1f)" % (hero_max.z - hero_min.z, hero_min.z))
 
     # ---- FV import
-    before = set(bpy.data.objects.keys())
-    ext = os.path.splitext(a.model)[1].lower()
-    if ext in (".gltf", ".glb"):
-        bpy.ops.import_scene.gltf(filepath=a.model)
-    elif ext == ".fbx":
-        bpy.ops.import_scene.fbx(filepath=a.model, automatic_bone_orientation=False)
-    elif ext in (".dmx", ".smd"):
-        bpy.ops.import_scene.smd(filepath=a.model)
-    elif ext == ".blend":
-        with bpy.data.libraries.load(a.model, link=False) as (src, dst):
-            dst.objects = list(src.objects)
-        for o in dst.objects:
-            if o is not None:
-                link_to_scene(o)
-    else:
-        die("don't know how to import " + ext)
-    fv_objs = new_objects(before)
-    relink_textures(a.model, a.textures)
+    fv_objs = import_model(a.model, a.textures)
     fv_arms = [o for o in fv_objs if o.type == "ARMATURE"]
     fv_meshes = [o for o in fv_objs if o.type == "MESH" and len(o.data.polygons)]
     log("imported %d objects: %d armatures, %d meshes" % (len(fv_objs), len(fv_arms), len(fv_meshes)))
@@ -1261,6 +1375,27 @@ def main():
 
     # ---- hero parts we keep (gun, doors)
     keep_mats = csv(a.keep_mats)
+    if a.gun:
+        # the bone the stock gun hangs off = the one most of its vertices follow
+        gun_words = {"gun", "weapon"}
+        mats_ = hero_body.data.materials
+        names_ = {g.index: g.name for g in hero_body.vertex_groups}
+        tally = {}
+        for poly in hero_body.data.polygons:
+            if not mat_has(mats_[poly.material_index], gun_words):
+                continue
+            for vi in poly.vertices:
+                for g in hero_body.data.vertices[vi].groups:
+                    tally[names_[g.group]] = tally.get(names_[g.group], 0.0) + g.weight
+        gun_bone = max(tally, key=tally.get) if tally else "weapon"
+        keep_mats = [k for k in keep_mats if k not in gun_words]
+        new_gun = fit_gun(os.path.abspath(a.gun), hero_arm, gun_bone,
+                          [float(x) for x in a.gun_grip.split(",")],
+                          "muzzle_fx" if "muzzle_fx" in hero_bones else "weaponTip",
+                          "barrel_a" if "barrel_a" in hero_bones else "weapon",
+                          a.gun_scale, a.textures, a.gun_forward, a.gun_up)
+        keep.append(new_gun)
+        log("replaced the hero's gun with %s (follows %s)" % (os.path.basename(a.gun), gun_bone))
     gun = hero_body.copy()
     gun.data = hero_body.data.copy()
     link_to_scene(gun)
