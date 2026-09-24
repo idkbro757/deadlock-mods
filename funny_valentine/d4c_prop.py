@@ -70,20 +70,48 @@ VMDL = """<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} f
 def parse_args():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     p = argparse.ArgumentParser(description="Pose the fitted D4C and write it out as a static prop")
-    p.add_argument("--fitted", required=True, help="blend saved by fv_build.py --save-blend with D4C on the hero skeleton")
-    p.add_argument("--anim", required=True, help="a decompiled Doorman animation .dmx to take the pose from")
+    p.add_argument("--posed", default="",
+                   help="already-posed D4C to use instead of --fitted/--anim (props/d4c_posed.glb, made with --save-posed)")
+    p.add_argument("--fitted", default="", help="blend saved by fv_build.py --save-blend with D4C on the hero skeleton")
+    p.add_argument("--anim", default="", help="a decompiled Doorman animation .dmx to take the pose from")
+    p.add_argument("--save-posed", default="", help="also save the posed D4C (centred, feet at 0) as a .glb for --posed")
     p.add_argument("--frame", type=float, default=0.5, help="where in the animation, 0..1")
     p.add_argument("--addon", required=True, help="CSDK12 content/citadel_addons/<addon> folder")
     # behind the left shoulder and floating, like the stand in the Gappy (Celeste) mod: the camera sits
-    # over the right shoulder, so directly behind or to the right would cover the crosshair
-    p.add_argument("--offset", default="-40,30,18",
+    # over the right shoulder, so directly behind or to the right would cover the crosshair.
+    # -40,30,18 (tested) put him almost on the camera, cut off at the left edge; -15,32,12 is untested.
+    p.add_argument("--offset", default="-15,32,12",
                    help="where D4C floats relative to the player's feet: back(-)/front, right(-)/left, up")
     p.add_argument("--scale", type=float, default=1.0)
     return p.parse_args(argv)
 
 
-def main():
-    a = parse_args()
+def posed_from_file(path):
+    """The posed D4C saved by --save-posed: returns (mesh, materials) and clears the scene."""
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    fv.ensure_bst()
+    objs = fv.import_model(os.path.abspath(path))
+    meshes = [o for o in objs if o.type == "MESH" and len(o.data.polygons)]
+    if not meshes:
+        fv.die("no mesh in " + path)
+    bpy.context.view_layer.update()
+    for o in meshes:
+        fv.bake_world_transform(o)
+    if len(meshes) > 1:
+        with bpy.context.temp_override(active_object=meshes[0], selected_editable_objects=meshes, object=meshes[0]):
+            bpy.ops.object.join()
+    body = meshes[0]
+    me = body.data.copy()
+    mats = [m for m in me.materials]
+    for o in list(bpy.data.objects):
+        bpy.data.objects.remove(o)
+    return me, mats
+
+
+def posed_from_fitted(a):
+    """Pose the fitted D4C with one frame of a Doorman animation: returns (mesh, materials)."""
+    if not (a.fitted and a.anim):
+        fv.die("give --posed, or both --fitted and --anim")
     fv.ensure_bst()
     bpy.ops.wm.open_mainfile(filepath=os.path.abspath(a.fitted))
     fv.ensure_bst()
@@ -114,6 +142,40 @@ def main():
     mats = [m for m in body.data.materials]
     for o in list(bpy.data.objects):
         bpy.data.objects.remove(o)
+    return me, mats
+
+
+def save_posed(me, mats, path):
+    """Centre the posed mesh (feet at 0, middle over the origin, facing +X) and write it as a .glb."""
+    co = np.empty(len(me.vertices) * 3)
+    me.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 3)
+    centred = me.copy()
+    centred.vertices.foreach_set("co", (co - [co[:, 0].mean(), co[:, 1].mean(), co[:, 2].min()]).ravel())
+    o = bpy.data.objects.new("d4c_posed", centred)
+    bpy.context.scene.collection.objects.link(o)
+    img = fv.base_color_source(mats[0])[0] if mats and mats[0] else None
+    m = bpy.data.materials.new("d4c")
+    m.use_nodes = True
+    if img:
+        tex = m.node_tree.nodes.new("ShaderNodeTexImage")
+        tex.image = img
+        bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        m.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    centred.materials.clear()
+    centred.materials.append(m)
+    for x in bpy.context.view_layer.objects:
+        x.select_set(x == o)
+    bpy.ops.export_scene.gltf(filepath=os.path.abspath(path), export_format="GLB", use_selection=True)
+    bpy.data.objects.remove(o)
+    fv.log("saved the posed D4C to", path)
+
+
+def main():
+    a = parse_args()
+    me, mats = posed_from_file(a.posed) if a.posed else posed_from_fitted(a)
+    if a.save_posed:
+        save_posed(me, mats, a.save_posed)
     prop = bpy.data.objects.new(PROP_NAME, me)
     col = bpy.data.collections.new(PROP_NAME)
     bpy.context.scene.collection.children.link(col)
