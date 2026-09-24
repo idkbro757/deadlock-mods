@@ -29,13 +29,21 @@ The same tools you used for the Billy mod:
 - **[Deadlock VMDL Compiler](https://github.com/kwlnd/deadlock-vmdl-compiler/releases)**
   (it injects the AG2 skeleton/animgraph and compiles in CSWin64)
 
-## Steps
+## Quick route (prebuilt)
+
+If you have `funny_valentine_addon.zip` (the ready-made addon folder with the FV
+model, materials and patched `doorman.vmdl`), skip straight to steps 4–5: unzip it
+into `CSDK12/content/citadel_addons/`, so you get
+`citadel_addons/funny_valentine/models/...`, then compile and pack.
+
+## Steps (building it yourself)
 
 1. **Get the model.** Download
    [FUNNY VALENTINE & D4C || SBR by shamus](https://sketchfab.com/3d-models/funny-valentine-d4c-sbr-2a19d4e917184ba3addc8f0b2f7c14ee)
    from Sketchfab. It's free and rigged, but you need a free Sketchfab account.
-   Pick **glTF**, then unzip it into `funny_valentine/source/` so that
-   `source/scene.gltf` exists. That folder is git-ignored.
+   glTF or the original `.blend` both work. If the `.blend` can't find its
+   textures, the script finds same-named files in a nearby `textures/` folder
+   (or pass `--textures`).
 
 2. **Decompile Doorman.** In CSDK12, make a new addon called `funny_valentine`. In
    Source 2 Viewer, open `Deadlock/game/citadel/pak01_dir.vpk`, go to
@@ -89,6 +97,7 @@ material name. If the hero has extra render meshes to hide, pass them to `--drop
 
 ## Credits
 
-- Model: "FUNNY VALENTINE & D4C || SBR" by **shamus (@consistent_models)** on
-  Sketchfab, licensed **CC BY 4.0**. Keep this credit if you upload the mod anywhere.
+- Model: "FUNNY VALENTINE & D4C || SBR", uploaded to Sketchfab by **shamus (@consistent_models)**.
+  It's killermemerino's XNALara port of the model from *JoJo's Bizarre Adventure: All-Star
+  Battle / Eyes of Heaven* (Bandai Namco / CyberConnect2), so credit them too if you share it.
 - Funny Valentine / JoJo's Bizarre Adventure © Hirohiko Araki. This is a non-commercial fan mod.

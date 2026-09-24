@@ -48,7 +48,7 @@ OUT_NAME = "funny_valentine"
 MAT_DIR = "materials/funny_valentine"
 
 # Stuff on the FV side we never want on the hero.
-DEFAULT_EXCLUDE = "d4c,dirty,deeds,outline,icosphere"
+DEFAULT_EXCLUDE = "d4c,dirty,deeds,outline,icosphere,eyelash"   # eyelash cards need alpha test, just drop them
 # Hero body faces with these materials are kept (Doorman's gun + portable doors).
 DEFAULT_KEEP_MATS = "gun,weapon,door"
 # Extra hero render meshes to drop from the .vmdl (the body mesh is always replaced).
@@ -84,6 +84,7 @@ def parse_args():
                    help="comma list: hero body materials to keep on the new model, default 'gun,weapon,door'")
     p.add_argument("--exclude", default=DEFAULT_EXCLUDE,
                    help="comma list: FV-side meshes to throw away (substring match on object/material name)")
+    p.add_argument("--textures", default="", help="folder to look in for textures the model can't find")
     p.add_argument("--pick", default="", help="substring of the armature to use if the file has several (FV vs D4C)")
     p.add_argument("--scale", type=float, default=1.0, help="extra size multiplier after matching the hero's height")
     p.add_argument("--weights", choices=("auto", "model", "hero"), default="auto",
@@ -129,6 +130,28 @@ def ensure_bst():
     if not hasattr(bpy.types.Scene, "vs"):
         die("Blender Source Tools isn't installed/enabled. Get it from "
             "https://github.com/Artfunkel/BlenderSourceTools/releases (Edit > Preferences > Add-ons > Install).")
+
+
+def dmx_material_paths(path):
+    """{'doorman_gun.vmat': 'models/.../doorman_gun.vmat'} straight from the DMX, via BST's datamodel module."""
+    import importlib
+    import addon_utils
+    for mod in addon_utils.modules():
+        if "valvesource" in mod.__name__ or "source_tools" in mod.__name__:
+            try:
+                dm = importlib.import_module(mod.__name__ + ".datamodel").load(path)
+            except Exception as ex:
+                log("couldn't read material paths from the dmx:", ex)
+                return {}
+            out = {}
+            for e in dm.elements:
+                if e.type == "DmeMaterial" and e.get("mtlName"):
+                    name = e["mtlName"].replace("\\", "/")
+                    base = os.path.basename(name)
+                    out[base.lower()] = name
+                    out[os.path.splitext(base)[0].lower()] = name
+            return out
+    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -252,14 +275,15 @@ def classify(name):
         return None, side
     if base.endswith("d") and base[:-1] in ("leg", "knee", "ankle", "toe"):   # MMD "D" deform bones
         base = base[:-1]
-    for k, v in FINGERS.items():
-        if any(t.startswith(k) for t in base_toks):
-            return "f_" + v, side
-    # face/hair/cloth bones follow their parent; match whole tokens ("forearm" contains "ear")
+    # face/hair/cloth bones follow their parent; match whole tokens ("forearm" contains "ear"),
+    # and before fingers: "Head_Lip_Lower_Middle" is not a middle finger
     if any(t.startswith(k) for t in base_toks for k in ("eye", "brow", "lid", "lash", "mouth", "lip", "tongue",
                                                           "teeth", "cheek", "nose", "ear", "hair", "cloth", "coat",
                                                           "skirt", "cape", "tail", "breast", "bust")):
         return None, side
+    for k, v in FINGERS.items():
+        if any(t.startswith(k) for t in base_toks):
+            return "f_" + v, side
     if "hand" in base or "wrist" in base or "palm" in base:
         return "hand", side
     if "forearm" in base or "lowerarm" in base or "armlower" in base or "elbow" in base or base == "lowarm":
@@ -579,6 +603,38 @@ def save_image(img, path):
         return False
 
 
+def relink_textures(model_path, extra_dir=""):
+    """Point images whose file is missing at a same-named file near the model (textures/, ../textures/ ...)."""
+    here = os.path.dirname(os.path.abspath(model_path))
+    roots = [d for d in (extra_dir, here, os.path.dirname(here)) if d and os.path.isdir(d)]
+    index = {}
+    for r in roots:
+        for dirpath, dirs, files in os.walk(r):
+            if dirpath[len(r):].count(os.sep) >= 3:
+                dirs[:] = []
+            for f in files:
+                if f.lower().endswith((".png", ".tga", ".jpg", ".jpeg", ".dds", ".bmp", ".tif", ".tiff", ".webp")):
+                    key = re.sub(r"[ _]+", "_", f.lower())
+                    index.setdefault(key, os.path.join(dirpath, f))
+    fixed, missing = 0, []
+    for img in bpy.data.images:
+        if img.packed_file or img.source != "FILE" or not img.filepath:
+            continue
+        if os.path.isfile(bpy.path.abspath(img.filepath, library=img.library)):
+            continue
+        base = os.path.basename(img.filepath.replace("\\", "/"))
+        hit = index.get(re.sub(r"[ _]+", "_", base.lower()))
+        if hit:
+            img["fv_orig_path"] = img.filepath
+            img.filepath = hit
+            img.reload()
+            fixed += 1
+        else:
+            missing.append(base)
+    if fixed or missing:
+        log("textures: relinked %d%s" % (fixed, (", can't find %s" % missing) if missing else ""))
+
+
 def base_color_source(mat):
     """(image or None, rgba) feeding the material's base colour."""
     rgba = (0.8, 0.8, 0.8, 1.0)
@@ -647,6 +703,22 @@ def clean_name(s, used):
 # the fit
 
 
+def name_blob(o):
+    """Object + material + texture names/paths, lowercase - rips often only say what they are in the texture paths."""
+    parts = [o.name]
+    for m in (o.data.materials if o.type == "MESH" else []):
+        if not m:
+            continue
+        parts.append(m.name)
+        if m.node_tree:
+            for n in m.node_tree.nodes:
+                if n.type == "TEX_IMAGE" and n.image:
+                    # only the file + its folder, as the file originally had it (not wherever we relinked it to)
+                    orig = n.image.get("fv_orig_path", n.image.filepath).replace("\\", "/")
+                    parts += [n.image.name, "/".join(orig.split("/")[-2:])]
+    return " ".join(parts).lower()
+
+
 def pick_armature(arms, meshes, pick):
     if len(arms) == 1:
         return arms[0]
@@ -658,7 +730,7 @@ def pick_armature(arms, meshes, pick):
         die("--pick %r matched no armature. Armatures: %s" % (pick, [a.name for a in arms]))
 
     def score(a):
-        names = " ".join([a.name] + [o.name for o in meshes if o.find_armature() == a]).lower()
+        names = " ".join([a.name.lower()] + [name_blob(o) for o in meshes if o.find_armature() == a])
         s = 0
         if re.search(r"valentine|funny|president|\bfv\b", names):
             s += 1000
@@ -696,7 +768,8 @@ def build_warp(fv, hero, hero_spine):
             M = Matrix.Translation(ha) @ R.to_4x4() @ Matrix.Translation(-a)
             return M, R
         u = (b - a).normalized()
-        k = max(0.5, min(2.0, (hb - ha).length / (b - a).length))
+        # stretch so this bone's far end lands exactly on the hero's next joint; clamping it tears the mesh
+        k = max(0.1, min(10.0, (hb - ha).length / (b - a).length))
         S = Matrix.Identity(3)
         for i in range(3):
             for j in range(3):
@@ -916,10 +989,15 @@ def main():
     delete(o for o in got if o not in (hero_arm, hero_body))
     hero_arm.name = "hero_skeleton"
     hero_body.name = "hero_body"
+    # BST names materials by file name only; put the full game path back (they can live in different folders)
+    full = dmx_material_paths(body_dmx)
     mat_prefix = (bpy.context.scene.vs.material_path or "").strip("/")
     for m in hero_body.data.materials:
-        if m and mat_prefix and "/" not in m.name:
-            m.name = mat_prefix + "/" + m.name
+        if m and "/" not in m.name:
+            want = full.get(m.name.lower()) or (mat_prefix + "/" + m.name if mat_prefix else m.name)
+            m.name = want
+            if m.name != want:
+                log("!! material path %s is too long for this Blender version (63 chars) - use Blender 5+" % want)
     bpy.context.scene.vs.material_path = ""
     hero_bones = hero_arm.data.bones
     hero_spine = sorted([b.name for b in hero_bones if re.fullmatch(r"spine_\d+", b.name)],
@@ -960,6 +1038,7 @@ def main():
     else:
         die("don't know how to import " + ext)
     fv_objs = new_objects(before)
+    relink_textures(a.model, a.textures)
     fv_arms = [o for o in fv_objs if o.type == "ARMATURE"]
     fv_meshes = [o for o in fv_objs if o.type == "MESH" and len(o.data.polygons)]
     log("imported %d objects: %d armatures, %d meshes" % (len(fv_objs), len(fv_arms), len(fv_meshes)))
@@ -973,8 +1052,7 @@ def main():
     fv_arm = pick_armature(fv_arms, fv_meshes, a.pick) if fv_arms else None
 
     def excluded(o):
-        names = [o.name.lower()] + [m.name.lower() for m in o.data.materials if m]
-        return any(x in n for x in excl for n in names)
+        return any(x in name_blob(o) for x in excl)
 
     def owner_armature(o):
         if o.parent and o.parent.type == "ARMATURE" and o.parent_type == "BONE":
@@ -1195,8 +1273,12 @@ def main():
             if key in done:
                 o.data.materials[i] = done[key]
                 continue
-            short = clean_name(m.name if m else "default", used)
             img, rgba = base_color_source(m)
+            # rips have names like "25_7vtn11t0 body_0.1_16_16"; the texture name ("Diffuse", "Eyes") reads better
+            label = os.path.splitext(img.name)[0] if img else (m.name if m else "default")
+            if img and label.lower() in ("diffuse", "albedo", "basecolor", "base_color", "color", "texture"):
+                label = "body"
+            short = clean_name(label, used)
             color_png = "fv_%s_color.png" % short
             path = os.path.join(out_mat_dir, color_png)
             if not (img and save_image(img, path)):
