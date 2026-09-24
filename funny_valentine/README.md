@@ -73,19 +73,20 @@ into `CSDK12/content/citadel_addons/`, so you get
 
 ## D4C in the Hotel
 
-While someone is checked into the Hotel (Doorman's ult), D4C floats beside you, just behind your
-left shoulder, facing where you aim. He appears the moment they're checked in and vanishes the
-moment they come out, whether that's the full stay, a shorter or longer one from items, or an
-early checkout. He sits on the left because the camera looks over your right shoulder; anywhere
-behind or to the right puts him in front of the crosshair.
+While someone is checked into the Hotel (Doorman's ult), D4C floats behind your left shoulder,
+facing where you aim and bobbing gently, like the stand in the Gappy (Celeste) mod. He appears the
+moment they're checked in and vanishes the moment they come out, whether that's the full stay, a
+shorter or longer one from items, or an early checkout. He's on the left because the camera looks
+over your right shoulder; directly behind or to the right would cover the crosshair.
 
 How: the game puts `particles/abilities/doorman/doorman_hotel_debuff.vpcf` on the victim's
 stand-in for exactly as long as they're in the Hotel. `addon_files/` overrides it with Valve's
 same effect plus one extra child, `particles/funny_valentine/d4c_hotel.vpcf`. That child copies
 the lifecycle of Valve's own floating key: one particle whose lifetime only runs out when the game
 ends the effect, so it has no timings of its own. D4C himself is a static prop
-(`models/heroes_wip/doorman_v2/fv_d4c_hotel.vmdl`), posed by `d4c_prop.py`, with the "beside the
-left shoulder" offset built into the mesh.
+(`models/heroes_wip/doorman_v2/fv_d4c_hotel.vmdl`), posed by `d4c_prop.py`, with the "behind the
+left shoulder" offset built into the mesh. Deadlock draws effect models turned half a turn from the
+yaw you give them (the Gappy mod's stand has the same fix), so the renderer rotates him 180 degrees.
 
 An effect can't tell which player is Doorman: all it knows is the victim and the local player
 (whoever's screen it is). So D4C follows the local player. When you're Doorman that's you. A friend

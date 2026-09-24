@@ -74,9 +74,9 @@ def parse_args():
     p.add_argument("--anim", required=True, help="a decompiled Doorman animation .dmx to take the pose from")
     p.add_argument("--frame", type=float, default=0.5, help="where in the animation, 0..1")
     p.add_argument("--addon", required=True, help="CSDK12 content/citadel_addons/<addon> folder")
-    # beside the left shoulder, a little behind and floating: the camera sits over the right shoulder,
-    # so anywhere behind or to the right puts him between the camera and the crosshair
-    p.add_argument("--offset", default="-18,52,22",
+    # behind the left shoulder and floating, like the stand in the Gappy (Celeste) mod: the camera sits
+    # over the right shoulder, so directly behind or to the right would cover the crosshair
+    p.add_argument("--offset", default="-40,30,18",
                    help="where D4C floats relative to the player's feet: back(-)/front, right(-)/left, up")
     p.add_argument("--scale", type=float, default=1.0)
     return p.parse_args(argv)

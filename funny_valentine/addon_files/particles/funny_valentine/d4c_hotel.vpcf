@@ -155,6 +155,94 @@
 			m_bIgnoreNormal = true
 			m_bOrientZ = false
 			m_bAcceptsDecals = false
+			m_vecLocalRotation = 
+			{
+				m_nType = "PVEC_TYPE_LITERAL"
+				m_vLiteralValue = [ 0.0, 180.0, 0.0 ]
+			}
+			m_vecLocalOffset = 
+			{
+				m_nType = "PVEC_TYPE_FLOAT_COMPONENTS"
+				m_FloatComponentX = 
+				{
+					m_nType = "PF_TYPE_LITERAL"
+					m_flLiteralValue = 0.0
+				}
+				m_FloatComponentY = 
+				{
+					m_nType = "PF_TYPE_LITERAL"
+					m_flLiteralValue = 0.0
+				}
+				m_FloatComponentZ = 
+				{
+					m_nType = "PF_TYPE_COLLECTION_AGE"
+					m_nMapType = "PF_MAP_TYPE_CURVE"
+					m_nInputMode = "PF_INPUT_MODE_LOOPED"
+					m_flInput0 = 0.0
+					m_flInput1 = 3.0
+					m_Curve = 
+					{
+						m_spline = 
+						[
+							{
+								x = 0.0
+								y = 0.0
+								m_flSlopeIncoming = 6.28
+								m_flSlopeOutgoing = 6.28
+							},
+							{
+								x = 0.75
+								y = 3.0
+								m_flSlopeIncoming = 0.0
+								m_flSlopeOutgoing = 0.0
+							},
+							{
+								x = 1.5
+								y = 0.0
+								m_flSlopeIncoming = -6.28
+								m_flSlopeOutgoing = -6.28
+							},
+							{
+								x = 2.25
+								y = -3.0
+								m_flSlopeIncoming = 0.0
+								m_flSlopeOutgoing = 0.0
+							},
+							{
+								x = 3.0
+								y = 0.0
+								m_flSlopeIncoming = 6.28
+								m_flSlopeOutgoing = 6.28
+							},
+						]
+						m_tangents = 
+						[
+							{
+								m_nIncomingTangent = "CURVE_TANGENT_SPLINE"
+								m_nOutgoingTangent = "CURVE_TANGENT_SPLINE"
+							},
+							{
+								m_nIncomingTangent = "CURVE_TANGENT_SPLINE"
+								m_nOutgoingTangent = "CURVE_TANGENT_SPLINE"
+							},
+							{
+								m_nIncomingTangent = "CURVE_TANGENT_SPLINE"
+								m_nOutgoingTangent = "CURVE_TANGENT_SPLINE"
+							},
+							{
+								m_nIncomingTangent = "CURVE_TANGENT_SPLINE"
+								m_nOutgoingTangent = "CURVE_TANGENT_SPLINE"
+							},
+							{
+								m_nIncomingTangent = "CURVE_TANGENT_SPLINE"
+								m_nOutgoingTangent = "CURVE_TANGENT_SPLINE"
+							},
+						]
+						m_vDomainMins = [ 0.0, -3.0 ]
+						m_vDomainMaxs = [ 3.0, 3.0 ]
+					}
+				}
+			}
 		},
 	]
 }
