@@ -679,6 +679,23 @@ def base_color_source(mat):
     return img, rgba
 
 
+def check_uvs(obj):
+    """Stop if any textured material ended up with collapsed UVs (the whole part would be one texel)."""
+    me = obj.data
+    if len(me.uv_layers) != 1:
+        die("expected one UV map after joining, got %s" % [l.name for l in me.uv_layers])
+    uv = np.empty(len(me.loops) * 2)
+    me.uv_layers[0].data.foreach_get("uv", uv)
+    uv = uv.reshape(-1, 2)
+    mat_of_loop = np.empty(len(me.loops), dtype=np.int32)
+    for p in me.polygons:
+        mat_of_loop[p.loop_start:p.loop_start + p.loop_total] = p.material_index
+    for i, m in enumerate(me.materials):
+        sel = uv[mat_of_loop == i]
+        if len(sel) > 8 and len(np.unique(sel.round(4), axis=0)) <= 1:
+            die("material %s lost its UVs while joining meshes" % (m.name if m else i))
+
+
 def preview_material(mat, png):
     """Hook the exported colour map up in Blender too, so --save-blend/--preview show textures."""
     if not mat.node_tree:
@@ -1298,6 +1315,17 @@ def main():
             log("  material %-28s -> %s%s" % (key, vmat_rel, "" if img else " (flat colour)"))
 
     # ---- one object, exported with BST
+    # Every part needs exactly one UV map with the same name, or join keeps them as separate
+    # maps and BST exports only one: FV's "UV1" vs the gun's "texcoord$0" left FV with all-zero UVs.
+    for o in keep:
+        me = o.data
+        if not me.uv_layers:
+            me.uv_layers.new(name="UVMap")
+            continue
+        main = next((l.name for l in me.uv_layers if l.active_render), me.uv_layers.active.name)
+        for name in [l.name for l in me.uv_layers if l.name != main]:
+            me.uv_layers.remove(me.uv_layers[name])
+        me.uv_layers[0].name = "UVMap"
     for o in keep:
         o.select_set(True)
     final = keep[0]
@@ -1305,6 +1333,7 @@ def main():
         bpy.ops.object.join()
     final.name = OUT_NAME
     final.data.name = OUT_NAME
+    check_uvs(final)
     delete([hero_body])
     col = bpy.data.collections.new(OUT_NAME)
     bpy.context.scene.collection.children.link(col)

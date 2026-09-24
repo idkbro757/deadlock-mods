@@ -1,6 +1,8 @@
-# Puts the fixed Funny Valentine materials into your CSDK12 addon and clears the old compiled ones.
+# Puts the fixed Funny Valentine files into your CSDK12 addon:
+#  - the fixed materials (always), clearing stale compiled ones
+#  - funny_valentine.dmx, if one sits next to this script (fixed model mesh)
 # Usage: double-click "Fix FV materials.bat" (or drag your CSDK12 folder onto it).
-#        Run it again with -Check after "Compile All Assets" to confirm the texture compiled.
+#        Run it with -Check after "Compile All Assets" to confirm the texture compiled.
 param([string]$CsdkPath = "", [switch]$Check)
 $ErrorActionPreference = "Stop"
 function Say($m, $c = "Gray") { Write-Host $m -ForegroundColor $c }
@@ -154,21 +156,46 @@ try {
     foreach ($png in "fv_body_color.png", "fv_eyes_color.png") {
         if (-not (Test-Path -LiteralPath (Join-Path $mats $png))) { throw "$png is missing from $mats - re-unzip funny_valentine_addon.zip into $contentAddons first." }
     }
-    [System.IO.File]::WriteAllText((Join-Path $mats "fv_body.vmat"), $Body)
+    $bodyPath = Join-Path $mats "fv_body.vmat"
+    $sameVmats = (Test-Path -LiteralPath $bodyPath) -and ([System.IO.File]::ReadAllText($bodyPath) -eq $Body)
+    [System.IO.File]::WriteAllText($bodyPath, $Body)
     [System.IO.File]::WriteAllText((Join-Path $mats "fv_eyes.vmat"), $Eyes)
-    Say "  wrote fixed fv_body.vmat + fv_eyes.vmat" "Green"
+    Say "  materials: fixed fv_body.vmat + fv_eyes.vmat in place" "Green"
 
-    $old = Join-Path $csdk "game\citadel_addons\funny_valentine\materials"
-    if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force; Say "  deleted old compiled materials" "Green" }
+    # keep the compiled materials if they're already the good ones (real colour texture present)
+    $goodTex = Get-ChildItem -LiteralPath $gameMats -Filter "fv_body_color*.vtex_c" -ErrorAction SilentlyContinue | Where-Object { $_.Length -gt 500KB }
+    $needCompileAll = $true
+    if ($sameVmats -and $goodTex) {
+        $needCompileAll = $false
+        Say "  compiled materials are already good - keeping them" "Green"
+    } else {
+        $old = Join-Path $csdk "game\citadel_addons\funny_valentine\materials"
+        if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force; Say "  deleted old compiled materials" "Green" }
+    }
+
+    # fixed model mesh shipped next to this script
+    $dmx = Join-Path $PSScriptRoot "funny_valentine.dmx"
+    if (Test-Path -LiteralPath $dmx) {
+        $dest = Join-Path $addon "models\heroes_wip\doorman_v2\funny_valentine.dmx"
+        Copy-Item -LiteralPath $dmx -Destination $dest -Force
+        # brand-new timestamp, otherwise the compiler keeps its older synced copy
+        (Get-Item -LiteralPath $dest).LastWriteTime = Get-Date
+        Say "  model: new funny_valentine.dmx in place" "Green"
+    }
 
     foreach ($stray in (Join-Path $contentAddons "fv_material_fix"), (Join-Path $addon "funny_valentine")) {
         if (Test-Path -LiteralPath $stray) { Remove-Item -LiteralPath $stray -Recurse -Force; Say "  removed stray folder $stray" }
     }
     Say ""
     Say "Next:" "Cyan"
-    Say "  1. CSDK12: right-click funny_valentine > Compile All Assets"
-    Say "  2. Run 'Check FV materials.bat' - it should say OK"
-    Say "  3. VMDL Compiler: compile, then Yes to make the vpk (should be 3-4 MB)"
+    if ($needCompileAll) {
+        Say "  1. CSDK12: right-click funny_valentine > Compile All Assets"
+        Say "  2. Run 'Check FV materials.bat' - it should say OK"
+        Say "  3. VMDL Compiler: compile, then Yes to make the vpk (should be 3-4 MB)"
+    } else {
+        Say "  1. VMDL Compiler: compile, then Yes to make the vpk (should be 3-4 MB)"
+        Say "  (no need to run Compile All Assets again)"
+    }
 } catch {
     Say ""
     Say "Failed: $($_.Exception.Message)" "Red"
