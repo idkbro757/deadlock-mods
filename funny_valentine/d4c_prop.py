@@ -1,6 +1,6 @@
 """
-D4C for the Hotel: a posed, static D4C that the Hotel debuff effect shows behind whoever
-Doorman checked in (see particles/ in addon_files/).
+D4C for the Hotel: a posed, static D4C that the Hotel debuff effect floats next to the player
+while someone is checked in (see particles/ in addon_files/).
 
 Needs a D4C already fitted to Doorman's skeleton, which fv_build.py makes when pointed at D4C
 instead of Valentine (use a scratch copy of the hero folder, it writes funny_valentine.dmx there):
@@ -74,8 +74,10 @@ def parse_args():
     p.add_argument("--anim", required=True, help="a decompiled Doorman animation .dmx to take the pose from")
     p.add_argument("--frame", type=float, default=0.5, help="where in the animation, 0..1")
     p.add_argument("--addon", required=True, help="CSDK12 content/citadel_addons/<addon> folder")
-    p.add_argument("--offset", default="-40,-28,8",
-                   help="where D4C stands relative to the victim's feet: back(-)/front, right(-)/left, up")
+    # beside the left shoulder, a little behind and floating: the camera sits over the right shoulder,
+    # so anywhere behind or to the right puts him between the camera and the crosshair
+    p.add_argument("--offset", default="-18,52,22",
+                   help="where D4C floats relative to the player's feet: back(-)/front, right(-)/left, up")
     p.add_argument("--scale", type=float, default=1.0)
     return p.parse_args(argv)
 
@@ -117,7 +119,7 @@ def main():
     bpy.context.scene.collection.children.link(col)
     col.objects.link(prop)
 
-    # stand it behind the victim: feet `up` above their feet, body centre at (back, side)
+    # place it relative to the player: feet `up` above theirs, body centre at (back, side)
     co = np.empty(len(me.vertices) * 3)
     me.vertices.foreach_get("co", co)
     co = co.reshape(-1, 3) * a.scale

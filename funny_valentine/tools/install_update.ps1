@@ -44,14 +44,18 @@ function Find-Addon {
     throw "Couldn't find CSDK12\content\citadel_addons\funny_valentine. Drag your CSDK12 folder onto the .bat file."
 }
 
-# compiled file -> the step that makes it
+# compiled file -> the step that makes it, and the source files it must be newer than
+# (not the .vmdl files: the VMDL Compiler rewrites those after every compile)
+$Csdk = "CSDK12: right-click the addon > Compile All Assets"
 $Expected = [ordered]@{
-    "materials\funny_valentine\fv_revolver.vmat_c"               = "CSDK12: right-click the addon > Compile All Assets"
-    "materials\funny_valentine\fv_d4c.vmat_c"                    = "CSDK12: right-click the addon > Compile All Assets"
-    "particles\funny_valentine\d4c_hotel.vpcf_c"                 = "CSDK12: right-click the addon > Compile All Assets"
-    "particles\abilities\doorman\doorman_hotel_debuff.vpcf_c"    = "CSDK12: right-click the addon > Compile All Assets"
-    "models\heroes_wip\doorman_v2\doorman.vmdl_c"                = "VMDL Compiler: model doorman.vmdl, preset doorman, compile"
-    "models\heroes_wip\doorman_v2\fv_d4c_hotel.vmdl_c"           = "VMDL Compiler: model fv_d4c_hotel.vmdl, compile"
+    "materials\funny_valentine\fv_revolver.vmat_c"            = @($Csdk, "materials\funny_valentine\fv_revolver.vmat")
+    "materials\funny_valentine\fv_d4c.vmat_c"                 = @($Csdk, "materials\funny_valentine\fv_d4c.vmat")
+    "particles\funny_valentine\d4c_hotel.vpcf_c"              = @($Csdk, "particles\funny_valentine\d4c_hotel.vpcf")
+    "particles\abilities\doorman\doorman_hotel_debuff.vpcf_c" = @($Csdk, "particles\abilities\doorman\doorman_hotel_debuff.vpcf")
+    "models\heroes_wip\doorman_v2\doorman.vmdl_c"             = @("VMDL Compiler: model doorman.vmdl, preset doorman, compile",
+                                                                   "models\heroes_wip\doorman_v2\funny_valentine.dmx")
+    "models\heroes_wip\doorman_v2\fv_d4c_hotel.vmdl_c"        = @("VMDL Compiler: model fv_d4c_hotel.vmdl (from the dropdown), compile",
+                                                                   "models\heroes_wip\doorman_v2\fv_d4c_hotel.dmx")
 }
 
 try {
@@ -62,13 +66,15 @@ try {
 
     if ($Check) {
         $missing = 0
-        $installed = Get-Item -LiteralPath (Join-Path $addon "models\heroes_wip\doorman_v2\funny_valentine.dmx") -ErrorAction SilentlyContinue
         foreach ($k in $Expected.Keys) {
+            $step = $Expected[$k][0]
             $f = Get-Item -LiteralPath (Join-Path $game $k) -ErrorAction SilentlyContinue
-            $stale = $f -and $installed -and $k -like "*doorman.vmdl_c" -and $f.LastWriteTime -lt $installed.LastWriteTime
-            if ($f -and -not $stale) { Say ("  ok       " + $k) "Green" }
-            elseif ($stale) { Say ("  OLD      $k  (compiled before the update) -> " + $Expected[$k]) "Yellow"; $missing++ }
-            else { Say ("  MISSING  $k  -> " + $Expected[$k]) "Red"; $missing++ }
+            $newest = $Expected[$k][1..($Expected[$k].Count - 1)] |
+                ForEach-Object { Get-Item -LiteralPath (Join-Path $addon $_) -ErrorAction SilentlyContinue } |
+                Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if (-not $f) { Say ("  MISSING  $k  -> " + $step) "Red"; $missing++ }
+            elseif ($newest -and $f.LastWriteTime -lt $newest.LastWriteTime) { Say ("  OLD      $k  (built before the update) -> " + $step) "Yellow"; $missing++ }
+            else { Say ("  ok       " + $k) "Green" }
         }
         if ($missing -eq 0) { Say "Everything's built. In the VMDL Compiler click 'make vpk...' and upload the vpk." "Green" }
         return

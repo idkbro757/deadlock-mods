@@ -73,18 +73,24 @@ into `CSDK12/content/citadel_addons/`, so you get
 
 ## D4C in the Hotel
 
-When Doorman checks someone into the Hotel (his ult), D4C stands behind the spot they vanished
-from, hand raised, facing the way they faced. He shows up the moment they're checked in and
-vanishes the moment they come out, whether that's the full stay, a shorter or longer one from
-items, or an early checkout.
+While someone is checked into the Hotel (Doorman's ult), D4C floats beside you, just behind your
+left shoulder, facing where you aim. He appears the moment they're checked in and vanishes the
+moment they come out, whether that's the full stay, a shorter or longer one from items, or an
+early checkout. He sits on the left because the camera looks over your right shoulder; anywhere
+behind or to the right puts him in front of the crosshair.
 
 How: the game puts `particles/abilities/doorman/doorman_hotel_debuff.vpcf` on the victim's
 stand-in for exactly as long as they're in the Hotel. `addon_files/` overrides it with Valve's
 same effect plus one extra child, `particles/funny_valentine/d4c_hotel.vpcf`. That child copies
 the lifecycle of Valve's own floating key: one particle whose lifetime only runs out when the game
 ends the effect, so it has no timings of its own. D4C himself is a static prop
-(`models/heroes_wip/doorman_v2/fv_d4c_hotel.vmdl`), posed by `d4c_prop.py`, with the "behind and to
-the right" offset built into the mesh.
+(`models/heroes_wip/doorman_v2/fv_d4c_hotel.vmdl`), posed by `d4c_prop.py`, with the "beside the
+left shoulder" offset built into the mesh.
+
+An effect can't tell which player is Doorman: all it knows is the victim and the local player
+(whoever's screen it is). So D4C follows the local player. When you're Doorman that's you. A friend
+who also has the mod but is playing someone else would see D4C next to *their* hero while the
+victim's stand-in is nearby.
 
 To add it, copy `addon_files/` into the addon (`tools/Install FV update.bat` does that and stamps the
 files so the compilers pick them up). Then:

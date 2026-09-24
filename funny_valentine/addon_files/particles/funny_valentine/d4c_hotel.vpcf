@@ -19,6 +19,16 @@
 			]
 		},
 	]
+	m_PreEmissionOperators = 
+	[
+		{
+			_class = "C_OP_SetControlPointToPlayer"
+			m_nCP1 = 12
+			m_vecCP1Pos = [ 0.0, 0.0, 0.0 ]
+			m_bOrientToEyes = true
+			m_nPosition = "PARTICLE_ABS_ORIGIN"
+		},
+	]
 	m_Emitters = 
 	[
 		{
@@ -36,7 +46,7 @@
 			_class = "C_INIT_CreateWithinSphereTransform"
 			m_TransformInput = 
 			{
-				m_nControlPoint = 0
+				m_nControlPoint = 12
 			}
 		},
 		{
@@ -65,18 +75,16 @@
 			m_nOpEndCapState = "PARTICLE_ENDCAP_ENDCAP_ON"
 		},
 		{
-			_class = "C_OP_PositionLock"
-			m_TransformInput = 
-			{
-				m_nControlPoint = 0
-			}
-			m_bLockRot = true
+			_class = "C_OP_SetToCP"
+			m_nControlPointNumber = 12
+			m_vecOffset = [ 0.0, 0.0, 0.0 ]
+			m_bOffsetLocal = false
 		},
 		{
 			_class = "C_OP_RemapTransformOrientationToYaw"
 			m_TransformInput = 
 			{
-				m_nControlPoint = 0
+				m_nControlPoint = 12
 			}
 			m_nFieldOutput = 12
 			m_flRotOffset = 0.0
@@ -144,6 +152,7 @@
 					m_model = resource:"models/heroes_wip/doorman_v2/fv_d4c_hotel.vmdl"
 				},
 			]
+			m_bIgnoreNormal = true
 			m_bOrientZ = false
 			m_bAcceptsDecals = false
 		},
